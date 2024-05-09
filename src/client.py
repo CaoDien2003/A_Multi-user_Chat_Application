@@ -1,29 +1,39 @@
-import socket
-import threading
+import asyncio
+import websockets
 
-def receive_message():
+async def listen_for_messages(websocket):
+    # Listen for incoming messages and print them.
+    try:
+        async for message in websocket:
+            print(f"\n{message}")
+    except websockets.exceptions.ConnectionClosed:
+        print("Connection to server was closed.")
+
+async def send_messages(websocket):
+    # Send messages entered by the user.
     while True:
-        try:
-            message = client_socket.recv(1024).decode('ascii')
-            if message == 'NICK':
-                client_socket.send(nickname.encode('ascii'))
-            else:
-                print(message)
-        except:
-            print("You have been disconnected from the server.")
-            client_socket.close()
+        message = input("Enter your message: ")
+        if message:
+            await websocket.send(message)
+        else:
+            print("Closing connection")
             break
 
-def write_message():
-    while True:
-        message = f"{nickname}: {input('')}"
-        client_socket.send(message.encode('ascii'))
+async def websocket_client():
+    uri = "ws://localhost:6789"
+    async with websockets.connect(uri) as websocket:
+        nickname = input("Choose your nickname: ")
+        await websocket.send(nickname)  # Send nickname as the first message after connecting.
+        print(await websocket.recv())  # Receive and print the connection confirmation
+        
+        # Task for receiving messages
+        receiver_task = asyncio.create_task(listen_for_messages(websocket))
+        
+        # Task for sending messages
+        await send_messages(websocket)
+        
+        # Cleanup
+        receiver_task.cancel()
 
-nickname = input("Choose your nickname: ")
-client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-host = socket.gethostname()
-port = 12345
-client_socket.connect((host, port))
-
-threading.Thread(target=receive_message).start()
-threading.Thread(target=write_message).start()
+if __name__ == "__main__":
+    asyncio.run(websocket_client())
