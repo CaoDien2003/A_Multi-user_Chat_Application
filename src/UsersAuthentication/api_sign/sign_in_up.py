@@ -1,6 +1,7 @@
 from flask import Flask, request, jsonify
 from src.UsersAuthentication.database import MongoDB
-from bson import json_util
+import secrets
+
 
 app = Flask(__name__)
 db = MongoDB('mongodb://localhost:27017/')
@@ -15,7 +16,10 @@ def signin():
 
     if user:
         if user['password'] == password:
-            return jsonify({'message': 'Logged in successfully'})
+            token = secrets.token_hex(100)
+            user_info = db.get_by_phone(phone)
+            user_info['_id'] = str(user_info['_id'])
+            return jsonify({'token': token, 'user_info': user_info})
         else:
             return jsonify({'message': 'wrong password'}), 401
     else:
@@ -34,6 +38,6 @@ def signup():
     else:
         new_user_id = db.add_user(name, phone, password)
         new_user = db.get_by_id(new_user_id)
-        return json_util.dumps(new_user), 201
+        return jsonify(new_user), 201
 
 
