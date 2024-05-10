@@ -2,7 +2,6 @@ from flask import Flask, request, jsonify
 from src.UsersAuthentication.database import MongoDB
 import secrets
 
-
 app = Flask(__name__)
 db = MongoDB('mongodb://localhost:27017/')
 
