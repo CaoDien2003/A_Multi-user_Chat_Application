@@ -2,7 +2,7 @@ import asyncio
 import websockets
 import json
 from aiohttp import web
-from storage_users import MongoDB
+from UsersAuthentication.database import MongoDB
 import secrets
 from flask import Flask, request, jsonify, make_response
 from aiohttp_wsgi import WSGIHandler
@@ -52,11 +52,11 @@ class CustomJSONEncoder(json.JSONEncoder):
     def default(self, obj):
         if isinstance(obj, ObjectId):
             return str(obj)
-        return json.JSONEncoder.default(self, obj)
+        return super(CustomJSONEncoder, self).default(obj)
 
 app = Flask(__name__)
-CORS(app, resources={r"/*": {"origins": "*"}})
 app.json_encoder = CustomJSONEncoder
+CORS(app, supports_credentials=True)
 
 db = MongoDB('mongodb://localhost:27017/')
 
@@ -65,7 +65,6 @@ def signin():
     data = request.get_json()
     phone = data.get('phone')
     password = data.get('password')
-
     user = db.get_by_phone(phone)
 
     if user:
@@ -75,29 +74,39 @@ def signin():
             user_info['_id'] = str(user_info['_id'])
             return jsonify({'token': token, 'user_info': user_info})
         else:
+            logging.info(f"Password mismatch for user {phone}")
             return jsonify({'message': 'wrong password'}), 401
     else:
+        logging.warning(f"No user found with phone {phone}")
         return jsonify({'message': 'Account has not been created'}), 404
 
-@app.route('/signup', methods=['POST', 'OPTIONS'])
+@app.route('/signup', methods=['POST'])
 def signup():
-    if request.method == 'OPTIONS':
-        return _build_cors_preflight_response()
-    elif request.method == 'POST':
-        data = request.get_json()
-        name = data.get('name')
-        phone = data.get('phone')
-        password = data.get('password')
+    data = request.get_json()
+    if not data:
+        return jsonify({'message': 'No data provided'}), 400
 
-        existing_user = db.get_by_phone(phone)
-        if existing_user:
-            return jsonify({'message': 'Phone number already exists'}), 409
-        else:
-            new_user_id = db.add_user(name, phone, password)
+    name = data.get('name')
+    phone = data.get('phone')
+    password = data.get('password')
+
+    if not all([name, phone, password]):
+        return jsonify({'message': 'Missing required fields'}), 400
+
+    existing_user = db.get_by_phone(phone)
+    if existing_user:
+        return jsonify({'message': 'Phone number already exists'}), 409
+
+    try:
+        new_user_id = db.add_user(name, phone, password)
+        if new_user_id:
             new_user = db.get_by_id(new_user_id)
             new_user['_id'] = str(new_user['_id'])  # Convert ObjectId to string
             return jsonify(new_user), 201
-        pass
+    except Exception as e:
+        logging.error(f"Error during signup: {e}")
+        return jsonify({'message': 'Signup failed due to server error'}), 500
+
 
 def _build_cors_preflight_response():
     response = make_response()
@@ -116,10 +125,20 @@ def log_request_info():
 
 @app.after_request
 def after_request(response):
-    response.headers.add("Access-Control-Allow-Origin", "*")
-    response.headers.add("Access-Control-Allow-Headers", "Content-Type,Authorization")
-    response.headers.add("Access-Control-Allow-Methods", "GET,PUT,POST,DELETE,OPTIONS")
+    for name, value in response.headers.items():
+        app.logger.debug(f"After request header {name}: {value}")
     return response
+
+@app.after_request
+def log_headers(response):
+    for name, value in response.headers.items():
+        app.logger.debug(f'Header {name}: {value}')
+    return response
+
+@app.route('/some-route')
+def some_route_function():
+    user_data = db.get_user_data()  # This would fetch data including ObjectId
+    return jsonify(user_data)
 
 # Run WebSocket server
 async def websocket_app():
