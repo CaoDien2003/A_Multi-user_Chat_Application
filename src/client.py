@@ -1,6 +1,6 @@
 import asyncio
 import websockets
-
+import json
 async def listen_for_messages(websocket):
     # Listen for incoming messages and print them.
     try:
@@ -15,9 +15,18 @@ async def send_messages(websocket):
         message = input("Enter your message: ")
         if message:
             await websocket.send(message)
-        else:
-            print("Closing connection")
-            break
+        if message.startswith('/create '):
+            room_name = message.split(' ')[1]
+            await websocket.send(json.dumps({"action": "create_room", "room": room_name}))
+        elif message.startswith('/join '):
+            room_name = message.split(' ')[1]
+            nickname = input("Enter your nickname: ")
+            await websocket.send(json.dumps({"action": "join", "nickname": nickname, "room": room_name}))
+        elif message == '/leave':
+            await websocket.send(json.dumps({"action": "leave"}))
+        # else:
+        #     print("Closing connection")
+        #     break
 
 async def websocket_client():
     uri = "ws://localhost:6789"

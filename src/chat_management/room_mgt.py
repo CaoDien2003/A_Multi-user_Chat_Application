@@ -36,3 +36,17 @@ class ChatManager:
             del self.connected[websocket]
             await websocket.close()
 
+    async def create_room(self, websocket, room_name):
+        if room_name in self.rooms:
+            await websocket.send(json.dumps({
+                "type": "error",
+                "message": f"Room '{room_name}' already exists."
+            }))
+        else:
+            self.rooms[room_name] = []
+            await websocket.send(json.dumps({
+                "type": "system",
+                "message": f"Room '{room_name}' has been created."
+            }))
+            print(f"Room '{room_name}' has been created.")
+

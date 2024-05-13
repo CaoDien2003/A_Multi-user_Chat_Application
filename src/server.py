@@ -56,6 +56,8 @@ async def handle_client(websocket, path):
                 await chat_manager.join(websocket, data['nickname'], data['room'])
             elif data['action'] == 'leave':
                 await chat_manager.leave(websocket)
+            elif data['action'] == 'create_room':
+                await chat_manager.create_room(websocket, data['room'])
             elif data['action'] == 'message':
                 await chat_manager.broadcast_message(websocket, data['message'])
     except websockets.exceptions.ConnectionClosed as e:
