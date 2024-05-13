@@ -9,7 +9,9 @@ from aiohttp_wsgi import WSGIHandler
 import logging
 from bson import ObjectId
 from flask_cors import CORS
+from chat_management.room_mgt import ChatManager
 
+chat_manager = ChatManager()
 connected = {}
 
 async def chat_server(websocket, path):
@@ -46,7 +48,18 @@ async def chat_server(websocket, path):
         if websocket in connected:
             del connected[websocket]
             print(f"{nickname} has disconnected and cleaned up.")
-
+async def handle_client(websocket, path):
+    try:
+        async for message in websocket:
+            data = json.loads(message)
+            if data['action'] == 'join':
+                await chat_manager.join(websocket, data['nickname'], data['room'])
+            elif data['action'] == 'leave':
+                await chat_manager.leave(websocket)
+            elif data['action'] == 'message':
+                await chat_manager.broadcast_message(websocket, data['message'])
+    except websockets.exceptions.ConnectionClosed as e:
+        await chat_manager.leave(websocket)
 
 class CustomJSONEncoder(json.JSONEncoder):
     def default(self, obj):

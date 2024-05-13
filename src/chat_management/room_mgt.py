@@ -1,25 +1,38 @@
-import json
 import asyncio
-
-from eventlet import websocket
+import json
+import websockets
 
 connected = {}
-async def leave(websocket):
-    if websocket in connected:
-        nickname = connected[websocket]['nickname']
-        room = connected[websocket]['room']
-        leave_message = json.dumps({
+class ChatManager:
+    def __init__(self):
+        self.connected = {}
+    async def join(self, websocket, nickname, room):
+        self.connected[websocket] = {'nickname': nickname, 'room': room}
+        join_message = json.dumps({
             "type": "system",
-            "message": f"{nickname} has left the room."
+            "message": f"{nickname} has joined the room {room}."
         })
-        print(f"{nickname} has left the chat room {room}.")
-        del connected[websocket]
-        # Notify other clients in the same room
-        tasks = [asyncio.create_task(client.send(leave_message)) for client in connected
-                 if connected[client]['room'] == room]
+        print(f"{nickname} has joined the chat room {room}.")
+        tasks = [client.send(join_message) for client in self.connected
+                 if self.connected[client]['room'] == room and client != websocket]
         if tasks:
-            await asyncio.wait(tasks)
-        else:
-            print("No other clients in the room, no broadcast needed.")
-if __name__ == '__main__':
-    asyncio.run(leave(websocket))
+            await asyncio.gather(*tasks)
+    async def leave(self, websocket):
+        if websocket in self.connected:
+            nickname = self.connected[websocket]['nickname']
+            room = self.connected[websocket]['room']
+            leave_message = json.dumps({
+                "type": "system",
+                "message": f"{nickname} has left the room {room}."
+            })
+            print(f"{nickname} has left the chat room {room}.")
+
+            # Notify other clients in the same room
+            tasks = [client.send(leave_message) for client in self.connected
+                     if self.connected[client]['room'] == room and client != websocket]
+            if tasks:
+                await asyncio.gather(*tasks)
+
+            del self.connected[websocket]
+            await websocket.close()
+
