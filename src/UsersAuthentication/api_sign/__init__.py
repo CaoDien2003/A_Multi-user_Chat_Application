@@ -1,1 +1,1 @@
-from src.UsersAuthentication.api_sign.sign_in_up import app
+from src.UsersAuthentication.api_sign.sign_in_up_out import app
