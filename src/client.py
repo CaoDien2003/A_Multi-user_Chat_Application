@@ -1,48 +1,64 @@
 import asyncio
 import websockets
 import json
-async def listen_for_messages(websocket):
-    # Listen for incoming messages and print them.
+
+async def receive_messages(websocket):
     try:
         async for message in websocket:
-            print(f"\n{message}")
-    except websockets.exceptions.ConnectionClosed:
-        print("Connection to server was closed.")
+            data = json.loads(message)
+            if data['type'] == 'chat':
+                print(f"{data['sender']}: {data['message']}")
+            elif data['type'] == 'system':
+                print(f"System: {data['message']}")
+    except websockets.ConnectionClosed:
+        print("Connection closed while receiving messages.")
+    except Exception as e:
+        print(f"Error while receiving messages: {e}")
 
 async def send_messages(websocket):
-    # Send messages entered by the user.
     while True:
-        message = input("Enter your message: ")
-        if message:
-            await websocket.send(message)
-        if message.startswith('/create '):
-            room_name = message.split(' ')[1]
-            await websocket.send(json.dumps({"action": "create_room", "room": room_name}))
-        elif message.startswith('/join '):
-            room_name = message.split(' ')[1]
-            nickname = input("Enter your nickname: ")
-            await websocket.send(json.dumps({"action": "join", "nickname": nickname, "room": room_name}))
-        elif message == '/leave':
-            await websocket.send(json.dumps({"action": "leave"}))
-        # else:
-        #     print("Closing connection")
-        #     break
+        try:
+            message = input("Enter your message (or type '/leave' to disconnect): ")
+            if message == "/leave":
+                await websocket.send(json.dumps({"action": "leave"}))
+                await websocket.close()
+                break
+            await websocket.send(json.dumps({"action": "message", "message": message}))
+        except websockets.ConnectionClosed:
+            print("Connection closed while sending messages.")
+            break
+        except Exception as e:
+            print(f"Error while sending messages: {e}")
+            break
 
 async def websocket_client():
     uri = "ws://localhost:6789"
-    async with websockets.connect(uri) as websocket:
-        nickname = input("Choose your nickname: ")
-        await websocket.send(nickname)  # Send nickname as the first message after connecting.
-        print(await websocket.recv())  # Receive and print the connection confirmation
-        
-        # Task for receiving messages
-        receiver_task = asyncio.create_task(listen_for_messages(websocket))
-        
-        # Task for sending messages
-        await send_messages(websocket)
-        
-        # Cleanup
-        receiver_task.cancel()
+    try:
+        async with websockets.connect(uri) as websocket:
+            token = input("Enter your authentication token: ")
+            await websocket.send(json.dumps({"action": "authenticate", "token": token}))
+            response = await websocket.recv()
+            print(response)
+            
+            if json.loads(response).get("message") == "Authentication successful":
+                nickname = input("Enter your nickname: ")
+                room = input("Enter the room name to join: ")
+                await websocket.send(json.dumps({"action": "join", "nickname": nickname, "room": room}))
+
+                # Start receiving messages in a separate task
+                receive_task = asyncio.create_task(receive_messages(websocket))
+                
+                await send_messages(websocket)
+                
+                # Cancel the receive task when done sending messages
+                receive_task.cancel()
+            else:
+                print("Authentication failed. Closing connection.")
+                await websocket.close()
+    except websockets.ConnectionClosed:
+        print("Connection closed.")
+    except Exception as e:
+        print(f"Error: {e}")
 
 if __name__ == "__main__":
     asyncio.run(websocket_client())

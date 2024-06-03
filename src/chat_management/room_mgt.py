@@ -1,52 +1,62 @@
 import asyncio
 import json
-import websockets
 
-connected = {}
 class ChatManager:
     def __init__(self):
-        self.connected = {}
+        self.rooms = {}
+
     async def join(self, websocket, nickname, room):
-        self.connected[websocket] = {'nickname': nickname, 'room': room}
+        print(f"Joining room: {room}, Nickname: {nickname}")
+        if room not in self.rooms:
+            self.rooms[room] = []
+        self.rooms[room].append((websocket, nickname))
         join_message = json.dumps({
             "type": "system",
             "message": f"{nickname} has joined the room {room}."
         })
-        print(f"{nickname} has joined the chat room {room}.")
-        tasks = [client.send(join_message) for client in self.connected
-                 if self.connected[client]['room'] == room and client != websocket]
-        if tasks:
-            await asyncio.gather(*tasks)
+        tasks = [client[0].send(join_message) for client in self.rooms[room] if client[0] != websocket]
+        await asyncio.gather(*tasks)
+        print(f"Current clients in {room}: {[(client[1], id(client[0])) for client in self.rooms[room]]}")
+
     async def leave(self, websocket):
-        if websocket in self.connected:
-            nickname = self.connected[websocket]['nickname']
-            room = self.connected[websocket]['room']
-            leave_message = json.dumps({
-                "type": "system",
-                "message": f"{nickname} has left the room {room}."
-            })
-            print(f"{nickname} has left the chat room {room}.")
+        for room, clients in self.rooms.items():
+            for client in clients:
+                if client[0] == websocket:
+                    self.rooms[room].remove(client)
+                    leave_message = json.dumps({
+                        "type": "system",
+                        "message": f"{client[1]} has left the room {room}."
+                    })
+                    tasks = [c[0].send(leave_message) for c in self.rooms[room]]
+                    await asyncio.gather(*tasks)
+                    print(f"{client[1]} has left room {room}")
+                    break
 
-            # Notify other clients in the same room
-            tasks = [client.send(leave_message) for client in self.connected
-                     if self.connected[client]['room'] == room and client != websocket]
-            if tasks:
-                await asyncio.gather(*tasks)
-
-            del self.connected[websocket]
-            await websocket.close()
-
-    async def create_room(self, websocket, room_name):
-        if room_name in self.rooms:
-            await websocket.send(json.dumps({
-                "type": "error",
-                "message": f"Room '{room_name}' already exists."
-            }))
-        else:
+    async def create_room(self, room_name):
+        if room_name not in self.rooms:
             self.rooms[room_name] = []
-            await websocket.send(json.dumps({
-                "type": "system",
-                "message": f"Room '{room_name}' has been created."
-            }))
-            print(f"Room '{room_name}' has been created.")
+        print(f"Room {room_name} created")
 
+    async def broadcast_message(self, websocket, message):
+        sender = None
+        room = None
+        for r, clients in self.rooms.items():
+            for client in clients:
+                if client[0] == websocket:
+                    sender = client[1]
+                    room = r
+                    break
+            if sender:
+                break
+
+        if sender and room:
+            broadcast_message = json.dumps({
+                "type": "chat",
+                "sender": sender,
+                "message": message
+            })
+            tasks = [client[0].send(broadcast_message) for client in self.rooms[room] if client[0] != websocket]
+            await asyncio.gather(*tasks)
+            print(f"Broadcasted message from {sender} in room {room}: {message}")
+        else:
+            print("Error: Sender or room not found")

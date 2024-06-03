@@ -1,34 +1,27 @@
-from flask import Flask, request, jsonify, make_response
-from flask_jwt_extended import get_jwt_identity, jwt_required, unset_access_cookies, create_access_token, unset_jwt_cookies
-from src.UsersAuthentication.database import MongoDB
+from flask import Flask, request, jsonify
+from flask_cors import CORS
 import secrets
+import asyncio
+import websockets
+import json
+from src.UsersAuthentication.database import MongoDB
 
 app = Flask(__name__)
+CORS(app)
 db = MongoDB('mongodb://localhost:27017/')
 
-@app.route('/signin', methods=['POST'])
-def signin():
-    data = request.get_json()
-    phone = data.get('phone')
-    password = data.get('password')
+# WebSocket server URL
+WS_SERVER_URL = 'ws://localhost:6789'
 
-    user = db.get_by_phone(phone)
-
-    if user:
-        if user['password'] == password:
-
-            token = secrets.token_hex(100)
-            user_info = db.get_by_phone(phone)
-            user_info['_id'] = str(user_info['_id'])
-            db.add_token(phone,token)
-
-            response_data = {'token': token, 'user_info': user_info, 'redirect_url': f'/signin/{phone}'}
-            return response_data
-
-        else:
-            return jsonify({'message': 'wrong password'}), 401
-    else:
-        return jsonify({'message': 'Account has not been created'}), 404
+async def send_token_to_ws_server(token):
+    try:
+        async with websockets.connect(WS_SERVER_URL) as websocket:
+            await websocket.send(json.dumps({'action': 'authenticate', 'token': token}))
+            response = await websocket.recv()
+            return json.loads(response)
+    except Exception as e:
+        print(f"Error connecting to WebSocket server: {e}")
+        return None
 
 @app.route('/signup', methods=['POST'])
 def signup():
@@ -45,24 +38,36 @@ def signup():
         new_user = db.get_by_id(new_user_id)
         return jsonify(new_user), 201
 
-@app.route('/signout', methods=['POST'])
-@jwt_required()
-def signout():
-    try:
-        # get token from request header or cookies
-        token = request.headers.get('Authorization')
-        if not token:
-            return 'cannot get token', 400
+@app.route('/signin', methods=['POST'])
+def signin():
+    data = request.get_json()
+    phone = data.get('phone')
+    password = data.get('password')
 
-        # Tìm user_id dựa vào token
-        user = db.users_collection.find_one({'token': token})
-        if user:
-            db.users_collection.update_one(
-                {'_id': user['_id']},
-                {'$unset': {'token': ''}}
-            )
-            return 'signout success', 200
+    user = db.get_by_phone(phone)
+    if user and user['password'] == password:
+        token = secrets.token_hex(16)
+        db.add_token(phone, token)
+        # Send token to WebSocket server
+        ws_response = asyncio.run(send_token_to_ws_server(token))
+        if ws_response and ws_response.get('message') == 'Authentication successful':
+            return jsonify({'token': token, 'user': user}), 200
         else:
-            return 'Token wrong', 401
-    except Exception as e:
-        return 'error:' + str(e), 500
+            return jsonify({'message': 'WebSocket authentication failed'}), 500
+    else:
+        return jsonify({'message': 'Invalid credentials'}), 401
+
+@app.route('/users', methods=['GET'])
+def get_all_users():
+    users = db.get_all_users()
+    return jsonify(users), 200
+
+@app.route('/search_users', methods=['GET'])
+def search_users():
+    query = request.args.get('query', '')
+    users = db.users_collection.find({"$or": [{"name": {"$regex": query, "$options": "i"}}, {"phone": {"$regex": query, "$options": "i"}}]})
+    users_list = [{"name": user["name"], "phone": user["phone"], "_id": str(user["_id"])} for user in users]
+    return jsonify(users_list), 200
+
+if __name__ == '__main__':
+    app.run(port=5000, debug=True)
