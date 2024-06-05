@@ -69,5 +69,39 @@ def search_users():
     users_list = [{"name": user["name"], "phone": user["phone"], "_id": str(user["_id"])} for user in users]
     return jsonify(users_list), 200
 
+@app.route('/create_room', methods=['POST'])
+def create_room():
+    data = request.get_json()
+    room_name = data.get('room_name')
+    users = data.get('users')
+    
+    existing_room = db.get_room_by_name(room_name)
+    if existing_room:
+        return jsonify({'message': 'Room already exists'}), 409
+    else:
+        new_room_id = db.create_room(room_name, users)
+        new_room = db.get_room_by_name(room_name)
+        return jsonify(new_room), 201
+
+@app.route('/search_rooms', methods=['GET'])
+def search_rooms():
+    query = request.args.get('query', '')
+    rooms = db.search_rooms(query)
+    return jsonify(rooms), 200
+
+@app.route('/delete_user', methods=['DELETE'])
+def delete_user():
+    data = request.get_json()
+    phone = data.get('phone')
+
+    if not phone:
+        return jsonify({'message': 'Phone number is required'}), 400
+
+    deleted_count = db.delete_user(phone)
+    if deleted_count > 0:
+        return jsonify({'message': 'User deleted successfully'}), 200
+    else:
+        return jsonify({'message': 'User not found'}), 404
+
 if __name__ == '__main__':
     app.run(port=5000, debug=True)

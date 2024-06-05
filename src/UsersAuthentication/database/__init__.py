@@ -1,1 +1,1 @@
-from src.UsersAuthentication.database.storage_users import MongoDB
+from src.UsersAuthentication.database.storage import MongoDB
