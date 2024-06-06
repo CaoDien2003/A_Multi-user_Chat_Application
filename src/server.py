@@ -45,12 +45,11 @@ async def handle_client(websocket, path):
             elif data['action'] == 'message':
                 await chat_manager.broadcast_message(websocket, data['message'])
             elif data['action'] == 'private_message':
-                if 'sender' in data and 'receiver' in data:
-                    room = generate_room_name(data['sender'], data['receiver'])
-                    print(f"Generated room: {room} for sender: {data['sender']} and receiver: {data['receiver']} with message: {data['message']}")  # Debugging print
-                    await chat_manager.send_private_message(room, data['message'], websocket)
+                if 'sender' in data and 'room' in data:
+                    print(f"Handling private message in room {data['room']}")
+                    await chat_manager.send_private_message(data['room'], data['message'], websocket, data['sender'])
                 else:
-                    print("Error: Missing 'sender' or 'receiver' in private message")
+                    print("Error: Missing 'sender' or 'room' in private message")
             elif data['action'] == 'create_group_chat':
                 group_name = data['groupName']
                 users = data['users']

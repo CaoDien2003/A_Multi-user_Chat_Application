@@ -67,25 +67,16 @@ class ChatManager:
         else:
             print("Error: Sender or room not found")
 
-    async def send_private_message(self, room, message, websocket):
-        sender = None
+    async def send_private_message(self, room, message, websocket, sender):
         if room in self.rooms:
-            for client in self.rooms[room]:
-                if client[0] == websocket:
-                    sender = client[1]
-                    break
-
-            if sender:
-                private_message = json.dumps({
-                    "type": "private_chat",
-                    "sender": sender,
-                    "message": message
-                })
-                tasks = [self.safe_send(client[0], private_message) for client in self.rooms[room] if client[0] != websocket]
-                await asyncio.gather(*tasks)
-                print(f"Private message from {sender} in room {room}: {message}")
-            else:
-                print("Error: Sender not found in room")
+            private_message = json.dumps({
+                "type": "private_chat",
+                "sender": sender,
+                "message": message
+            })
+            tasks = [self.safe_send(client[0], private_message) for client in self.rooms[room] if client[0] != websocket]
+            await asyncio.gather(*tasks)
+            print(f"Private message from {sender} in room {room}: {message}")
         else:
             print(f"Error: Room {room} does not exist")
 
