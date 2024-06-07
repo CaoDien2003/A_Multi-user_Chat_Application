@@ -7,7 +7,7 @@ import json
 from src.UsersAuthentication.database import MongoDB
 
 app = Flask(__name__)
-CORS(app)
+CORS(app)  # Add this line to enable CORS
 db = MongoDB('mongodb://localhost:27017/')
 
 # WebSocket server URL
@@ -74,7 +74,7 @@ def create_room():
     data = request.get_json()
     room_name = data.get('room_name')
     users = data.get('users')
-    
+
     existing_room = db.get_room_by_name(room_name)
     if existing_room:
         return jsonify({'message': 'Room already exists'}), 409
@@ -86,8 +86,17 @@ def create_room():
 @app.route('/search_rooms', methods=['GET'])
 def search_rooms():
     query = request.args.get('query', '')
-    rooms = db.search_rooms(query)
-    return jsonify(rooms), 200
+    token = request.args.get('token', '')
+
+    user = db.get_by_token(token)
+    if not user:
+        return jsonify({'message': 'Invalid token'}), 401
+
+    user_rooms = db.get_rooms_by_user(user['name'])
+    matched_rooms = [room for room in user_rooms if query.lower() in room['name'].lower()]
+
+    return jsonify(matched_rooms), 200
+
 
 @app.route('/delete_user', methods=['DELETE'])
 def delete_user():

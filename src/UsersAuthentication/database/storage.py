@@ -50,6 +50,10 @@ class MongoDB:
         rooms = self.rooms_collection.find({"name": {"$regex": query, "$options": "i"}})
         return [self._convert_objectid(room) for room in rooms]
 
+    def get_rooms_by_user(self, username):
+        rooms = self.rooms_collection.find({"users": username})
+        return [self._convert_objectid(room) for room in rooms]
+
     def _convert_objectid(self, obj):
         if obj and '_id' in obj:
             obj['_id'] = str(obj['_id'])
