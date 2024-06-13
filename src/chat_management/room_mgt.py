@@ -43,29 +43,20 @@ class ChatManager:
             self.rooms[room_name] = []
         print(f"Group room {room_name} created with users {users}")
 
-    async def broadcast_message(self, websocket, message):
-        sender = None
-        room = None
-        for r, clients in self.rooms.items():
-            for client in clients:
-                if client[0] == websocket:
-                    sender = client[1]
-                    room = r
-                    break
-            if sender:
-                break
+    async def broadcast_message(self, websocket, message, room, sender_name):
+        if room not in self.rooms:
+            print(f"Error: Room {room} does not exist")
+            return
 
-        if sender and room:
-            broadcast_message = json.dumps({
-                "type": "chat",
-                "sender": sender,
-                "message": message
-            })
-            tasks = [self.safe_send(client[0], broadcast_message) for client in self.rooms[room] if client[0] != websocket]
-            await asyncio.gather(*tasks)
-            print(f"Broadcasted message from {sender} in room {room}: {message}")
-        else:
-            print("Error: Sender or room not found")
+        broadcast_message = json.dumps({
+            "type": "chat",
+            "sender_name": sender_name,
+            "message": message
+        })
+
+        tasks = [self.safe_send(client[0], broadcast_message) for client in self.rooms[room] if client[0] != websocket]
+        await asyncio.gather(*tasks)
+        print(f"Broadcasted message from {sender_name} in room {room}: {message}")
 
     async def send_private_message(self, room, message, websocket, sender):
         if room in self.rooms:

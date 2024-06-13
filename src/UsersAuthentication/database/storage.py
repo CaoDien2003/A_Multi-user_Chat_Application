@@ -8,8 +8,8 @@ class MongoDB:
         self.users_collection = self.db['users']
         self.rooms_collection = self.db['rooms']
 
-    def get_by_phone(self, phone):
-        return self._convert_objectid(self.users_collection.find_one({'phone': phone}))
+    def get_by_name(self, name):
+        return self._convert_objectid(self.users_collection.find_one({'name': name}))
 
     def get_by_token(self, token):
         return self._convert_objectid(self.users_collection.find_one({'token': token}))
@@ -28,6 +28,9 @@ class MongoDB:
     def get_all_users(self):
         users = list(self.users_collection.find())
         return [self._convert_objectid(user) for user in users]
+    
+    def get_by_phone(self, phone):
+        return self._convert_objectid(self.users_collection.find_one({'phone': phone}))
 
     def _convert_objectid(self, user):
         if user and '_id' in user:
@@ -38,22 +41,26 @@ class MongoDB:
         result = self.users_collection.delete_one({'phone': phone})
         return result.deleted_count
     
-    def create_room(self, room_name, users):
-        room = {'name': room_name, 'users': users}
+    def create_room(self, name, users):
+        room = {'name': name, 'users': users}
         result = self.rooms_collection.insert_one(room)
         return str(result.inserted_id)
 
-    def get_room_by_name(self, room_name):
-        return self._convert_objectid(self.rooms_collection.find_one({'name': room_name}))
-
-    def search_rooms(self, query):
-        rooms = self.rooms_collection.find({"name": {"$regex": query, "$options": "i"}})
+    def get_rooms_by_user(self, user_phone):
+        rooms = self.rooms_collection.find({"users": user_phone})
         return [self._convert_objectid(room) for room in rooms]
 
-    def get_rooms_by_user(self, username):
-        rooms = self.rooms_collection.find({"users": username})
+    def get_room_by_name(self, name):
+        return self._convert_objectid(self.rooms_collection.find_one({'name': name}))
+
+    def get_all_rooms(self):
+        rooms = list(self.rooms_collection.find())
         return [self._convert_objectid(room) for room in rooms]
 
+    def delete_room(self, name):
+        result = self.rooms_collection.delete_one({'name': name})
+        return result.deleted_count
+    
     def _convert_objectid(self, obj):
         if obj and '_id' in obj:
             obj['_id'] = str(obj['_id'])

@@ -7,7 +7,8 @@ import json
 from src.UsersAuthentication.database import MongoDB
 
 app = Flask(__name__)
-CORS(app)  # Add this line to enable CORS
+CORS(app)  # Add this line to enable CORS for all routes
+
 db = MongoDB('mongodb://localhost:27017/')
 
 # WebSocket server URL
@@ -62,6 +63,18 @@ def get_all_users():
     users = db.get_all_users()
     return jsonify(users), 200
 
+@app.route('/get_user_by_phone', methods=['GET'])
+def get_user_by_phone():
+    phone = request.args.get('phone')
+    if not phone:
+        return jsonify({'message': 'Phone number is required'}), 400
+
+    user = db.get_by_phone(phone)
+    if not user:
+        return jsonify({'message': 'User not found'}), 404
+
+    return jsonify({'name': user.get('name'), 'phone': user.get('phone')}), 200
+
 @app.route('/search_users', methods=['GET'])
 def search_users():
     query = request.args.get('query', '')
@@ -92,11 +105,27 @@ def search_rooms():
     if not user:
         return jsonify({'message': 'Invalid token'}), 401
 
-    user_rooms = db.get_rooms_by_user(user['name'])
-    matched_rooms = [room for room in user_rooms if query.lower() in room['name'].lower()]
+    user_rooms = db.get_rooms_by_user(user['phone'])  # Assuming phone is the unique identifier
+    matched_rooms = [room for room in user_rooms if 'name' in room and query.lower() in room['name'].lower()]
 
     return jsonify(matched_rooms), 200
 
+@app.route('/get_room_users', methods=['GET'])
+def get_room_users():
+    room_name = request.args.get('room')
+    if not room_name:
+        return jsonify({'message': 'Room name is required'}), 400
+
+    room = db.get_room_by_name(room_name)
+    if not room:
+        return jsonify({'message': 'Room not found'}), 404
+
+    return jsonify({'users': room.get('users', [])}), 200
+
+@app.route('/all_rooms', methods=['GET'])
+def get_all_rooms():
+    rooms = db.get_all_rooms()
+    return jsonify(rooms), 200
 
 @app.route('/delete_user', methods=['DELETE'])
 def delete_user():
@@ -111,6 +140,20 @@ def delete_user():
         return jsonify({'message': 'User deleted successfully'}), 200
     else:
         return jsonify({'message': 'User not found'}), 404
+    
+@app.route('/delete_room', methods=['DELETE'])
+def delete_room():
+    data = request.get_json()
+    room_name = data.get('room_name')
+
+    if not room_name:
+        return jsonify({'message': 'Room name is required'}), 400
+
+    deleted_count = db.delete_room(room_name)
+    if deleted_count > 0:
+        return jsonify({'message': 'Room deleted successfully'}), 200
+    else:
+        return jsonify({'message': 'Room not found'}), 404
 
 if __name__ == '__main__':
     app.run(port=5000, debug=True)
