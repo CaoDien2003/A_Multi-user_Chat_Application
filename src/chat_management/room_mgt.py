@@ -6,18 +6,32 @@ class ChatManager:
     def __init__(self):
         self.rooms = {}
 
-    async def join(self, websocket, username, room):
-        print(f"Joining room: {room}, Username: {username}")
+    async def join(self, websocket, username, room, MAX_PARTICIPANT_PER_ROOM=None):
+        if not username:
+            await self.safe_send(websocket, json.dumps({"error": "Username is required to join the room"}))
+            return
+
         if room not in self.rooms:
-            self.rooms[room] = []
-        self.rooms[room].append((websocket, username))
+            await self.safe_send(websocket, json.dumps({"error": f"Room'{room}'does not exist"}))
+            return
+        room = self.rooms[room]
+
+        # Check if room has reached its participant limit
+        if len(room) >= MAX_PARTICIPANT_PER_ROOM:
+            await self.safe_send(websocket, json.dumps({"error": "Room has reached its participant limit"}))
+            return
+
+        # Add user to the room
+        room.append((websocket, username))
+
+        #Notify room participants about new user
         join_message = json.dumps({
             "type": "system",
-            "message": f"{username} has joined the room {room}."
+            "message": f"{username} has joined the room"
         })
-        tasks = [self.safe_send(client[0], join_message) for client in self.rooms[room] if client[0] != websocket]
-        await asyncio.gather(*tasks)
-        print(f"Current clients in {room}: {[(client[1], id(client[0])) for client in self.rooms[room]]}")
+        task = [self.safe_send(client[0], join_message) for client in room if client[0] != websocket]
+        await asyncio.gather(*task)
+        print(f"Current client in {room}: {[(client[1], id(client[0])) for client in room]}")
 
     async def leave(self, websocket):
         for room, clients in self.rooms.items():
