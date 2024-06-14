@@ -74,7 +74,11 @@ async def handle_client(websocket, path):
                 room = data.get('room')
                 sender_name = data.get('sender_name')
                 if message and room and sender_name:
-                    await chat_manager.broadcast_message(websocket, message, room, sender_name)
+                    sender = db.get_by_name(sender_name)
+                    if sender:
+                        await chat_manager.broadcast_message(websocket, message, room, sender['name'])
+                    else:
+                        print("Error: Sender not found")
                 else:
                     print("Error: Missing 'message', 'room', or 'sender_name' in broadcast request")
             elif data['action'] == 'create_group_chat':
@@ -106,3 +110,10 @@ async def main():
 if __name__ == "__main__":
     asyncio.run(main())
 
+async def main():
+    print("Starting WebSocket server on ws://localhost:6789")
+    async with websockets.serve(handle_client, "localhost", 6789):
+        await asyncio.Future()  # Run forever
+
+if __name__ == "__main__":
+    asyncio.run(main())
