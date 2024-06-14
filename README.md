@@ -76,6 +76,10 @@ This is a multi-user chat application that allows users to create and join group
 
 1. **Open the `welcome.html` File in a Browser:**
 
+    ```bash
+    cd front_end
+    ```
+
     Open the `welcome.html` file in a web browser to access the chat application interface.
 
 2. **Sign Up and Sign In:**
