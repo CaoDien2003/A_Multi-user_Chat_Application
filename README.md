@@ -35,7 +35,7 @@ This is a multi-user chat application that allows users to create and join group
     .\venv\Scripts\activate  # On Windows
     ```
 
-    If you are using VSCode on Windown, you might have the error "ModuleNotFoundError: No module named 'src'". In this case, you might add this.
+    If you are using VSCode on Windown, you might have the error "ModuleNotFoundError: No module named 'src'". To resolve this, add the following to your environment variables.
 
     ```bash
     $env:PYTHONPATH = "you/path/to/A/Multi/user/Chat/Application;$env:PYTHONPATH"
