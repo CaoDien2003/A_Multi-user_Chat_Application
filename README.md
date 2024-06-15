@@ -35,6 +35,12 @@ This is a multi-user chat application that allows users to create and join group
     .\venv\Scripts\activate  # On Windows
     ```
 
+    If you are using VSCode on Windown, you might have the error "ModuleNotFoundError: No module named 'src'". In this case, you might add this.
+
+    ```bash
+    $env:PYTHONPATH = "you/path/to/A/Multi/user/Chat/Application;$env:PYTHONPATH"
+    ```
+
 3. **Install Dependencies:**
 
     ```bash
@@ -67,7 +73,7 @@ This is a multi-user chat application that allows users to create and join group
 
     ```bash
     cd .\src\UsersAuthentication\api_sign  
-    python api_server.py
+    python api.py
     ```
 
     The Flask server will start running on `http://localhost:5000`.
